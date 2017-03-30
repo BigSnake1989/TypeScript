@@ -2828,6 +2828,7 @@ namespace ts {
     /* @internal */
     export interface TransientSymbol extends Symbol, SymbolLinks {
         checkFlags: CheckFlags;
+        transientSymbolIsRestParameter?: boolean;
     }
 
     export type SymbolTable = Map<Symbol>;

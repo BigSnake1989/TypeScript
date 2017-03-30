@@ -488,6 +488,10 @@ namespace ts {
             return symbol;
         }
 
+        function isTransientSymbol(symbol: Symbol): symbol is TransientSymbol {
+            return (symbol.flags & SymbolFlags.Transient) !== 0;
+        }
+
         function getExcludedSymbolFlags(flags: SymbolFlags): SymbolFlags {
             let result: SymbolFlags = 0;
             if (flags & SymbolFlags.BlockScopedVariable) result |= SymbolFlags.BlockScopedVariableExcludes;
@@ -2769,23 +2773,23 @@ namespace ts {
 
             function buildParameterDisplay(p: Symbol, writer: SymbolWriter, enclosingDeclaration?: Node, flags?: TypeFormatFlags, symbolStack?: Symbol[]) {
                 const parameterNode = <ParameterDeclaration>p.valueDeclaration;
-                if (isRestParameter(parameterNode)) {
+                if (parameterNode ? isRestParameter(parameterNode) : isTransientSymbol(p) && p.transientSymbolIsRestParameter) {
                     writePunctuation(writer, SyntaxKind.DotDotDotToken);
                 }
-                if (isBindingPattern(parameterNode.name)) {
+                if (parameterNode && isBindingPattern(parameterNode.name)) {
                     buildBindingPatternDisplay(<BindingPattern>parameterNode.name, writer, enclosingDeclaration, flags, symbolStack);
                 }
                 else {
                     appendSymbolNameOnly(p, writer);
                 }
-                if (isOptionalParameter(parameterNode)) {
+                if (parameterNode && isOptionalParameter(parameterNode)) {
                     writePunctuation(writer, SyntaxKind.QuestionToken);
                 }
                 writePunctuation(writer, SyntaxKind.ColonToken);
                 writeSpace(writer);
 
                 let type = getTypeOfSymbol(p);
-                if (isRequiredInitializedParameter(parameterNode)) {
+                if (parameterNode && isRequiredInitializedParameter(parameterNode)) {
                     type = includeFalsyTypes(type, TypeFlags.Undefined);
                 }
                 buildTypeDisplay(type, writer, enclosingDeclaration, flags, symbolStack);
@@ -14260,13 +14264,14 @@ namespace ts {
                 }
             }
 
-            if (isInJavaScriptFile(node) && signatures.length === 1) {
+            if (signatures.length === 1) {
                 const declaration = signatures[0].declaration;
                 if (declaration && isInJavaScriptFile(declaration) && !hasJSDocParameterTags(declaration)) {
                     if (containsArgumentsReference(<FunctionLikeDeclaration>declaration)) {
                         const signatureWithRest = cloneSignature(signatures[0]);
                         const syntheticArgsSymbol = createSymbol(SymbolFlags.Variable, "args");
                         syntheticArgsSymbol.type = anyArrayType;
+                        syntheticArgsSymbol.transientSymbolIsRestParameter = true;
                         signatureWithRest.parameters = concatenate(signatureWithRest.parameters, [syntheticArgsSymbol]);
                         signatureWithRest.hasRestParameter = true;
                         signatures = [signatureWithRest];
